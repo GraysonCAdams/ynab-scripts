@@ -25,5 +25,5 @@ jobs:
       - name: Cross-Build and Push Docker Image
         run: |
           docker buildx build --push \
-            --platform linux/arm64,linux/amd64 \
+            --platform linux/arm64 \
             --tag ghcr.io/graysoncadams/ynab-scripts:latest .
