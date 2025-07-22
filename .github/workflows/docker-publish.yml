@@ -38,3 +38,4 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/graysoncadams/ynab-scripts:latest
+          platform: linux/amd64
