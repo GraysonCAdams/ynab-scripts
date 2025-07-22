@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements and install
 COPY requirements.txt ./
-COPY monarchmoney ./monarchmoney
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy app code
