@@ -37,4 +37,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/ynab-scripts:latest
+          tags: ghcr.io/graysoncadams/ynab-scripts:latest
