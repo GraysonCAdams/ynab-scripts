@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  ynab-api:
+    image: ghcr.io/graysoncadams/ynab-scripts:latest
+    ports:
+      - "5001:5001"
+    environment:
+      # Example: Uncomment and set your environment variables as needed
+      # MONARCH_EMAIL: "your_email@example.com"
+      # MONARCH_PASSWORD: "your_password"
+      # MONARCH_CLIENT_ID: "your_client_id"
+      # MONARCH_CLIENT_SECRET: "your_client_secret"
+    restart: unless-stopped
+    # Uncomment if you want to pass a .env file
+    # env_file:
+    #   - .env
