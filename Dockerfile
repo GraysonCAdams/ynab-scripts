@@ -1,24 +1,27 @@
 # syntax=docker/dockerfile:1
-FROM python:3.13-slim
+FROM --platform=$BUILDPLATFORM python:3.13-slim
 
-# Set workdir
 WORKDIR /app
 
-# Install system dependencies (if any needed, add here)
+# Install common system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install
+# Install ARM64-specific dependencies if needed
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+      libatlas-base-dev \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
+
 COPY requirements.txt ./
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy app code
 COPY . .
 
-# Expose port
 EXPOSE 5001
 
-# Entrypoint
 CMD ["python", "app.py"]
