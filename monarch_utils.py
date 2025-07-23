@@ -27,13 +27,8 @@ def get_month_range():
 
 # Helper to login and handle MFA exception, returns (mm, error_response or None)
 async def get_mm():
-    if mm._logged_in:
-        mm.load_session()
-        return mm
-
     await mm.login(email=EMAIL, password=PASSWORD, mfa_secret_key=MFA_SECRET_KEY)
     mm.save_session()
-    mm._logged_in = True
     return mm
 
 
