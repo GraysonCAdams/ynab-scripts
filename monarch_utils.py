@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 load_dotenv()
 
 mm = MonarchMoney()
-mm._logged_in = False
 
 EMAIL = os.environ.get("MONARCH_MONEY_EMAIL")
 PASSWORD = os.environ.get("MONARCH_MONEY_PASSWORD")
@@ -27,7 +26,7 @@ def get_month_range():
 
 # Helper to login and handle MFA exception, returns (mm, error_response or None)
 async def get_mm():
-    await mm.login(email=EMAIL, password=PASSWORD, mfa_secret_key=MFA_SECRET_KEY, save_session=False, use_saved_session=False)
+    await mm.login(email=EMAIL, password=PASSWORD, mfa_secret_key=MFA_SECRET_KEY, use_saved_session=False)
     return mm
 
 
