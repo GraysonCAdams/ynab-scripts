@@ -6,19 +6,12 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 
+mm = MonarchMoney()
+mm._logged_in = False
+
 EMAIL = os.environ.get("MONARCH_MONEY_EMAIL")
 PASSWORD = os.environ.get("MONARCH_MONEY_PASSWORD")
 MFA_SECRET_KEY = os.environ.get("MFA_SECRET_KEY")
-
-mm_cache = TTLCache(maxsize=1, ttl=300)
-
-
-def get_mm():
-    if "mm" in mm_cache:
-        return mm_cache["mm"]
-    mm = MonarchMoney()
-    mm_cache["mm"] = mm
-    return mm
 
 
 def get_month_range():
@@ -33,19 +26,15 @@ def get_month_range():
 
 
 # Helper to login and handle MFA exception, returns (mm, error_response or None)
-async def login_and_get_mm():
-    mm = get_mm()
-    try:
-        await mm.login(email=EMAIL, password=PASSWORD, mfa_secret_key=MFA_SECRET_KEY)
-        mm._is_logged_in = True
-        return mm, None
-    except RequireMFAException:
-        mm._is_logged_in = False
-        return (
-            None,
-            {"error": "MFA required. Set up MFA_SECRET_KEY in environment."},
-            401,
-        )
+async def get_mm():
+    if mm._logged_in:
+        mm.load_session()
+        return mm
+
+    await mm.login(email=EMAIL, password=PASSWORD, mfa_secret_key=MFA_SECRET_KEY)
+    mm.save_session()
+    mm._logged_in = True
+    return mm
 
 
 # Helper to build category id<->name maps and monthly lookup

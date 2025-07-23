@@ -3,7 +3,7 @@ from flask import Flask, request, jsonify
 from functools import wraps
 import inspect
 from monarch_utils import (
-    login_and_get_mm,
+    get_mm,
     build_category_maps,
     get_month_range,
 )
@@ -23,9 +23,7 @@ def async_flask(f):
 
 
 async def get_category_balance(category_name):
-    mm, error = await login_and_get_mm()
-    if error:
-        return error
+    mm = await get_mm()
     start, _ = get_month_range()
     budgets = await mm.get_budgets(start, start)
     month_key = start
@@ -45,9 +43,7 @@ async def get_category_balance(category_name):
 
 
 async def set_category_balance(category_name, amount):
-    mm, error = await login_and_get_mm()
-    if error:
-        return error
+    mm = await get_mm()
     today = get_month_range()[1]
     budgets = await mm.get_budgets(today, today)
     _, cat_name_to_id, _ = build_category_maps(budgets)
@@ -66,9 +62,7 @@ async def set_category_balance(category_name, amount):
 
 
 async def get_flex_amount():
-    mm, error = await login_and_get_mm()
-    if error:
-        return error
+    mm = await get_mm()
     start, end = get_month_range()
     budgets = await mm.get_budgets(start, end)
     flex = budgets["budgetData"]["totalsByMonth"][0]["totalFlexibleExpenses"][
@@ -78,9 +72,8 @@ async def get_flex_amount():
 
 
 async def set_flex_amount(amount):
-    mm, error = await login_and_get_mm()
-    if error:
-        return error
+    mm = await get_mm()
+
     today = get_month_range()[1]
     await mm.update_flexible_budget(amount, today, False)
     return {"message": f"Flexible budget set to {amount}"}
