@@ -26,13 +26,20 @@ def get_month_range():
 
 # Helper to login and handle MFA exception, returns (mm, error_response or None)
 async def get_mm():
-    session_file = getattr(mm, '_session_file', None)
+    session_file = getattr(mm, "_session_file", None)
     use_saved_session = False
     if session_file and os.path.exists(session_file):
         mtime = datetime.fromtimestamp(os.path.getmtime(session_file))
         if (datetime.now() - mtime).total_seconds() < 300:
             use_saved_session = True
-    await mm.login(email=EMAIL, password=PASSWORD, mfa_secret_key=MFA_SECRET_KEY, use_saved_session=use_saved_session)
+        else:
+            os.remove(session_file)
+    await mm.login(
+        email=EMAIL,
+        password=PASSWORD,
+        mfa_secret_key=MFA_SECRET_KEY,
+        use_saved_session=use_saved_session,
+    )
     return mm
 
 
