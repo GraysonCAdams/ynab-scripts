@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 
-mm = MonarchMoney()
-
 EMAIL = os.environ.get("MONARCH_MONEY_EMAIL")
 PASSWORD = os.environ.get("MONARCH_MONEY_PASSWORD")
 MFA_SECRET_KEY = os.environ.get("MFA_SECRET_KEY")
@@ -26,13 +24,16 @@ def get_month_range():
 
 # Helper to login and handle MFA exception, returns (mm, error_response or None)
 async def get_mm():
+    mm = MonarchMoney()
     session_file = getattr(mm, "_session_file", None)
     use_saved_session = False
     if session_file and os.path.exists(session_file):
         mtime = datetime.fromtimestamp(os.path.getmtime(session_file))
         if (datetime.now() - mtime).total_seconds() < 300:
+            print(f"Using saved session from {session_file}.")
             use_saved_session = True
         else:
+            print(f"Session file {session_file} is too old, removing.")
             os.remove(session_file)
     await mm.login(
         email=EMAIL,
