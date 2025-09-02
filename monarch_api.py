@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import asyncio
 from flask import Flask, request, jsonify
 from functools import wraps
@@ -7,6 +8,8 @@ from monarch_utils import (
     build_category_maps,
     get_month_range,
 )
+import pprint
+import math
 
 app = Flask(__name__)
 
@@ -71,6 +74,13 @@ async def set_category_balance(category_name, amount, group=False):
     cat_id = name_to_id.get(category_name.lower())
     if not cat_id:
         return {"error": f"Category '{category_name}' not found."}, 404
+    pprint.pprint(
+        amount,
+        category_id=cat_id if not group else None,
+        category_group_id=cat_id if group else None,
+        timeframe="month",
+        start_date=today,
+        apply_to_future=False)
     await mm.set_budget_amount(
         amount,
         category_id=cat_id if not group else None,
@@ -146,6 +156,69 @@ def flex_set():
     if amount is None:
         return jsonify({"error": "Missing 'amount' in request body."}), 400
     return jsonify(asyncio.run(set_flex_amount(amount)))
+
+
+async def get_recurring_transactions():
+    mm = await get_mm()
+    # Only quarterly, semiyearly, yearly frequencies, include liabilities
+    return await mm.get_all_recurring_transaction_items(
+        frequencies=["quarterly", "semiyearly", "yearly"],
+        include_liabilities=True,
+    )
+
+
+async def update_periodic_transactions_budget():
+    mm = await get_mm()
+    recurring = await mm.get_all_recurring_transaction_items(
+        frequencies=["quarterly", "semiyearly", "yearly"],
+        include_liabilities=True,
+    )
+    items = recurring.get("recurringTransactionStreams", [])
+
+    # Build a mapping: {month: total_amount} for non-monthly frequencies only
+    from collections import defaultdict
+    month_totals = defaultdict(float)
+    today = datetime.now().date()
+    for item in items:
+        next_txn = item.get("nextForecastedTransaction", {})
+        date_str = next_txn.get("date")
+        amount = next_txn.get("amount", 0)
+        if not date_str or not amount:
+            continue
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        if date_obj >= today:
+            month_key = date_obj.strftime("%Y-%m")
+            month_totals[month_key] += amount
+
+    # Get budgets and category id for 'Periodic Subscriptions'
+    budgets = await mm.get_budgets(today.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"))
+    _, cat_name_to_id, _ = build_category_maps(budgets)
+    periodic_id = cat_name_to_id["categories"].get("periodic subscriptions")
+    if not periodic_id:
+        return {"error": "Category 'Periodic Subscriptions' not found."}, 404
+
+    results = []
+    for month_key, total in month_totals.items():
+        # Use first day of month for start_date
+        year, month = map(int, month_key.split("-"))
+        first_day = datetime(year, month, 1).strftime("%Y-%m-%d")
+        rounded_total = math.ceil(abs(total))
+        await mm.set_budget_amount(
+            rounded_total,
+            category_id=periodic_id,
+            category_group_id=None,
+            timeframe="month",
+            start_date=first_day,
+            apply_to_future=False,
+        )
+        results.append({"month": month_key, "amount": rounded_total})
+    return {"updated": results}
+
+
+@app.route("/periodic/update", methods=["GET"])
+@async_flask
+def periodic_update():
+    return jsonify(asyncio.run(update_periodic_transactions_budget()))
 
 
 def create_app():
