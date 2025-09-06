@@ -37,13 +37,13 @@ async def get_category_balance(category_name, group=False):
             return (
                 cat_id_to_name["categoryGroups"],
                 cat_name_to_id["categoryGroups"],
-                monthly_lookup["categoryGroups"]
+                monthly_lookup["categoryGroups"],
             )
         else:
             return (
                 cat_id_to_name["categories"],
                 cat_name_to_id["categories"],
-                monthly_lookup["categories"]
+                monthly_lookup["categories"],
             )
 
     def _get_balance(category_name):
@@ -70,7 +70,9 @@ async def set_category_balance(category_name, amount, group=False):
     today = get_month_range()[1]
     budgets = await mm.get_budgets(today, today)
     _, cat_name_to_id, _ = build_category_maps(budgets)
-    name_to_id = cat_name_to_id["categoryGroups"] if group else cat_name_to_id["categories"]
+    name_to_id = (
+        cat_name_to_id["categoryGroups"] if group else cat_name_to_id["categories"]
+    )
     cat_id = name_to_id.get(category_name.lower())
     if not cat_id:
         return {"error": f"Category '{category_name}' not found."}, 404
@@ -80,7 +82,8 @@ async def set_category_balance(category_name, amount, group=False):
         category_group_id=cat_id if group else None,
         timeframe="month",
         start_date=today,
-        apply_to_future=False)
+        apply_to_future=False,
+    )
     await mm.set_budget_amount(
         amount,
         category_id=cat_id if not group else None,
@@ -110,20 +113,28 @@ async def set_flex_amount(amount):
     return {"message": f"Flexible budget set to {amount}"}
 
 
-@app.route("/category/<category_name>", methods=["GET"])
+@app.route("/category", methods=["POST"])
 @async_flask
-def category_get(category_name):
+def category_get():
+    data = request.get_json()
+    category_name = data.get("category_name")
+    if not category_name:
+        return jsonify({"error": "Missing 'category_name' in request body."}), 400
     return jsonify(asyncio.run(get_category_balance(category_name)))
 
 
-@app.route("/category/<category_name>", methods=["POST"])
+@app.route("/category/set", methods=["POST"])
 @async_flask
-def category_set(category_name):
+def category_set():
     data = request.get_json()
+    category_name = data.get("category_name")
     amount = data.get("amount")
-    if amount is None:
-        return jsonify({"error": "Missing 'amount' in request body."}), 400
-    return jsonify(asyncio.run(set_category_balance(category_name, amount, group=False)))
+    if not category_name or amount is None:
+        return (
+            jsonify({"error": "Missing 'category_name' or 'amount' in request body."}),
+            400,
+        )
+    return jsonify(asyncio.run(set_category_balance(category_name, amount)))
 
 
 @app.route("/category-group/<category_name>", methods=["GET"])
@@ -177,6 +188,7 @@ async def update_periodic_transactions_budget():
 
     # Build a mapping: {month: total_amount} for non-monthly frequencies only
     from collections import defaultdict
+
     month_totals = defaultdict(float)
     today = datetime.now().date()
     for item in items:
@@ -191,7 +203,9 @@ async def update_periodic_transactions_budget():
             month_totals[month_key] += amount
 
     # Get budgets and category id for 'Periodic Subscriptions'
-    budgets = await mm.get_budgets(today.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"))
+    budgets = await mm.get_budgets(
+        today.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")
+    )
     _, cat_name_to_id, _ = build_category_maps(budgets)
     periodic_id = cat_name_to_id["categories"].get("periodic subscriptions")
     if not periodic_id:
