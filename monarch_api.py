@@ -137,19 +137,27 @@ def category_set():
     return jsonify(asyncio.run(set_category_balance(category_name, amount)))
 
 
-@app.route("/category-group/<category_name>", methods=["GET"])
+@app.route("/category-group", methods=["POST"])
 @async_flask
-def category_group_get(category_name):
+def category_group_get():
+    data = request.get_json()
+    category_name = data.get("category_name")
+    if not category_name:
+        return jsonify({"error": "Missing 'category_name' in request body."}), 400
     return jsonify(asyncio.run(get_category_balance(category_name, group=True)))
 
 
-@app.route("/category-group/<category_name>", methods=["POST"])
+@app.route("/category-group/set", methods=["POST"])
 @async_flask
-def category_group_set(category_name):
+def category_group_set():
     data = request.get_json()
+    category_name = data.get("category_name")
     amount = data.get("amount")
-    if amount is None:
-        return jsonify({"error": "Missing 'amount' in request body."}), 400
+    if not category_name or amount is None:
+        return (
+            jsonify({"error": "Missing 'category_name' or 'amount' in request body."}),
+            400,
+        )
     return jsonify(asyncio.run(set_category_balance(category_name, amount, group=True)))
 
 
