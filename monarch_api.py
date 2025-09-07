@@ -8,7 +8,6 @@ from monarch_utils import (
     build_category_maps,
     get_month_range,
 )
-import pprint
 import math
 
 app = Flask(__name__)
@@ -76,14 +75,7 @@ async def set_category_balance(category_name, amount, group=False):
     cat_id = name_to_id.get(category_name.lower())
     if not cat_id:
         return {"error": f"Category '{category_name}' not found."}, 404
-    pprint.pprint(
-        amount,
-        category_id=cat_id if not group else None,
-        category_group_id=cat_id if group else None,
-        timeframe="month",
-        start_date=today,
-        apply_to_future=False,
-    )
+
     await mm.set_budget_amount(
         amount,
         category_id=cat_id if not group else None,
