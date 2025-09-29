@@ -2,3 +2,5 @@ git+https://github.com/GraysonCAdams/monarchmoney.git@flex-budget
 Flask==3.1.1
 python-dotenv==1.1.1
 cachetools==6.1.0
+pycarddav==0.7.0
+vobject==0.9.9

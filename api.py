@@ -1,16 +1,125 @@
+# Unified API for Monarch and Fastmail endpoints
+import sys
 from datetime import datetime, timedelta
+import uuid
+import requests
+import vobject
+from requests.auth import HTTPBasicAuth
+from xml.etree import ElementTree as ET
 import asyncio
+import inspect
 from flask import Flask, request, jsonify
 from functools import wraps
-import inspect
 from monarch_utils import (
     get_mm,
     build_category_maps,
     get_month_range,
 )
 import math
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__)
+
+# ---- FASTMAIL CONFIG ----
+FASTMAIL_URL = (
+    "https://carddav.fastmail.com/dav/addressbooks/user/grayadams@fastmail.com/Default/"
+)
+USERNAME = "grayadams@fastmail.com"
+PASSWORD = os.environ.get("FASTMAIL_PASSWORD")  # Use an app password from Fastmail
+
+# -------------------------
+
+
+def create_vcard(sender_name, email):
+    v = vobject.vCard()
+    v.add("fn").value = sender_name
+    n = v.add("n")
+    n.value = vobject.vcard.Name(family="", given=sender_name)
+    email_field = v.add("email")
+    email_field.value = email
+    email_field.type_param = "INTERNET"
+    v.add("uid").value = str(uuid.uuid4())
+    return v
+
+
+def contact_exists(email):
+    # CardDAV REPORT to search for email
+    report_xml = f"""
+        <c:addressbook-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:carddav\">
+            <d:prop>
+                <d:getetag/>
+                <c:address-data/>
+            </d:prop>
+            <c:filter>
+                <c:prop-filter name=\"EMAIL\">
+                    <c:text-match collation=\"i;unicode-casemap\" match-type=\"equals\">{email}</c:text-match>
+                </c:prop-filter>
+            </c:filter>
+        </c:addressbook-query>
+        """
+    resp = requests.request(
+        "REPORT",
+        FASTMAIL_URL,
+        data=report_xml,
+        headers={"Content-Type": "application/xml", "Depth": "1"},
+        auth=HTTPBasicAuth(USERNAME, PASSWORD),
+    )
+    if resp.status_code not in (200, 207):
+        return False
+    root = ET.fromstring(resp.content)
+    ns = {"d": "DAV:", "c": "urn:ietf:params:xml:ns:carddav"}
+    for resp_elem in root.findall("d:response", ns):
+        card = resp_elem.find(".//c:address-data", ns)
+        if card is not None and email.lower() in card.text.lower():
+            return True
+    return False
+
+
+def add_contact(sender_name, email):
+    if contact_exists(email):
+        return (f"Contact for {email} already exists.", None)
+    else:
+        vcard = create_vcard(sender_name, email)
+        vcard_data = vcard.serialize()
+        resource_name = f"{vcard.uid.value}.vcf"
+        url = FASTMAIL_URL + resource_name
+        response = requests.put(
+            url,
+            data=vcard_data,
+            auth=HTTPBasicAuth(USERNAME, PASSWORD),
+            headers={"Content-Type": "text/vcard"},
+        )
+        if response.status_code in (200, 201, 204):
+            return (f"Added new contact {sender_name} <{email}>.", None)
+        elif response.status_code == 401:
+            return (
+                "Authentication failed. Check your username and app password.",
+                None,
+            )
+        else:
+            return (
+                f"Failed to add contact: {response.status_code} {response.reason}",
+                response.text,
+            )
+
+
+@app.route("/email-contact", methods=["POST"])
+def email_contact():
+    data = request.get_json()
+    sender_name = data.get("sender_name")
+    email = data.get("email")
+    if not sender_name or not email:
+        return (
+            jsonify({"error": "Missing 'sender_name' or 'email' in request body."}),
+            400,
+        )
+    msg, detail = add_contact(sender_name, email)
+    resp = {"message": msg}
+    if detail:
+        resp["detail"] = detail
+    return jsonify(resp)
 
 
 # Helper to allow async Flask views (Python 3.8+)
